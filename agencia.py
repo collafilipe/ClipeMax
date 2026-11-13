@@ -8,6 +8,7 @@ Camada de agencia: varios streamers ao mesmo tempo, cada um com contrato proprio
 So usa a biblioteca padrao de proposito: os testes rodam sem instalar numpy, ffmpeg ou Whisper.
 """
 import argparse
+import dataclasses
 import datetime
 import heapq
 import itertools
@@ -162,6 +163,64 @@ def adicionar_canal(arquivo, url, **opcoes):
     canal = interpretar_carteira(atual.rstrip("\n") + "\n" + linha + "\n")[-1]
     arquivo.write_text(atual.rstrip("\n") + "\n" + linha + "\n", encoding="utf-8")
     return canal
+
+
+# ordem em que as opcoes sao escritas de volta no arquivo: primeiro quem e, depois regras, depois contrato
+_ORDEM = ("cliente", "funcionario", "autorizado", "vigiar", "prioridade", "por_hora", "cortes", "jogo", "tags", "conta",
+          "mensalidade", "valor_mil_views")
+
+
+def linha_do_canal(canal):
+    """O canal de volta ao formato do arquivo, so com o que difere do padrao (a linha fica curta e legivel)."""
+    padrao, partes = Canal(url=canal.url), [canal.url]
+    for campo in _ORDEM:
+        valor = getattr(canal, campo)
+        if valor == getattr(padrao, campo) or valor in (None, ""):
+            continue
+        texto = ("sim" if valor else "nao") if isinstance(valor, bool) else f"{valor:g}" if isinstance(valor, float) \
+            else str(valor).replace("|", " ").strip()
+        partes.append(f"{campo}={texto}")
+    return " | ".join(partes)
+
+
+def _reescrever(arquivo, chave, trocar):
+    """Troca (ou remove, se trocar devolver None) a linha do canal `chave`, sem tocar em comentarios nem nos outros."""
+    arquivo = Path(arquivo)
+    linhas, achou = arquivo.read_text(encoding="utf-8-sig").splitlines(), False
+    for i, bruta in enumerate(linhas):
+        limpa = bruta.strip()
+        if not limpa or limpa.startswith("#") or chave_do_canal(limpa.split("|")[0]) != chave:
+            continue
+        achou, nova = True, trocar(interpretar_carteira(limpa)[0], i + 1)
+        linhas[i] = None if nova is None else linha_do_canal(nova)
+        break
+    if not achou:
+        raise ErroDeCarteira(f"o canal {chave} nao esta no arquivo de canais")
+    texto = "\n".join(l for l in linhas if l is not None) + "\n"
+    carteira = interpretar_carteira(texto)  # valida o arquivo inteiro antes de gravar
+    arquivo.write_text(texto, encoding="utf-8")
+    return carteira
+
+
+def atualizar_canal(arquivo, chave, campos):
+    """
+    Muda opcoes de um canal pelo site. `campos` e {opcao: texto}; texto vazio volta a opcao ao padrao.
+    Devolve o Canal como ficou. Opcao desconhecida ou valor invalido levanta ErroDeCarteira e nada e gravado.
+    """
+    def trocar(canal, n):
+        padrao, novos = Canal(url=canal.url), {}
+        for nome, valor in campos.items():
+            if nome not in _CAMPOS:
+                raise ErroDeCarteira(f"opcao desconhecida \"{nome}\" (validas: {', '.join(_CAMPOS)})")
+            texto = ("sim" if valor else "nao") if isinstance(valor, bool) else str(valor if valor is not None else "").strip()
+            novos[nome] = getattr(padrao, nome) if texto == "" else _CAMPOS[nome](texto, n)
+        return dataclasses.replace(canal, **novos)
+    return next(c for c in _reescrever(arquivo, chave, trocar) if c.chave == chave)
+
+
+def remover_canal(arquivo, chave):
+    """Tira o canal do arquivo. Os cortes ja feitos continuam nas pastas; so o time deixa de existir."""
+    _reescrever(arquivo, chave, lambda canal, n: None)
 
 
 def opcoes_do_canal(a, canal):

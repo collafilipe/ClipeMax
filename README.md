@@ -62,18 +62,25 @@ Os cortes do pedido passam pela mesma cadeia de gestores e chegam à sua mesa.
 
 ## Uso do dia a dia
 
-| O que fazer | Comando |
+Tudo é feito pelo site, que abre pelo atalho **ClipeMax** (ou `iniciar.bat`). Não precisa de comando.
+
+| O que fazer | Onde no site |
 |---|---|
-| Cortar uma live | `cortes.bat "LINK" --cortes 8` |
-| Cortar só de um jogo | `cortes.bat "LINK" --jogo "gta 6"` |
-| Vigiar os canais e cortar enquanto estão ao vivo | `cortes.bat --vigiar canais.txt --jogo "gta 6"` |
-| Ver a sua fila de aprovação e o escritório | `cortes.bat --revisar` |
-| Ver o desempenho de cada funcionário | `cortes.bat --avaliacao` |
-| Ver produção e receita estimada por canal | `cortes.bat --painel canais.txt` |
-| Ver o que seria postado, sem enviar | `cortes.bat --postar todas --simular` |
-| Postar os aprovados no YouTube | `cortes.bat --postar youtube --visibilidade publico` |
-| Trazer as views dos Shorts para o painel | `cortes.bat --atualizar-views` |
-| Ver todas as opções | `cortes.bat --help` |
+| Cortar uma live (antiga ou no ar) | Escritório → **Passar uma live para um time**: cole o link e escolha quantos cortes |
+| Cortar só de um jogo | No mesmo cartão, campo "Só de um jogo". Para um time inteiro: Gestão → Times → "Só cortar este jogo" |
+| Acompanhar os canais e cortar ao vivo | Escritório → **Abrir o expediente** |
+| Acompanhar um canal novo | Gestão → Times → **Novo time** (ou cole o link do canal no cartão do Escritório) |
+| Aprovar e reprovar cortes | **Aprovação** |
+| Ver o desempenho de cada time | Gestão → **Desempenho** |
+| Ver produção e receita estimada por canal | Gestão → **Desempenho** |
+| Marcar que um streamer autorizou, mudar contrato e regras do time | Gestão → **Times** |
+| Ver o que seria postado, sem enviar | Gestão → Postagem → **Ver o que seria postado** |
+| Postar os aprovados | Gestão → Postagem → **Postar os aprovados** (YouTube sai privado, a menos que você escolha outra visibilidade) |
+| Conectar a conta do YouTube ou do TikTok | Gestão → Postagem → **Conectar conta** |
+| Trazer as views dos Shorts | Gestão → Postagem → **Atualizar views dos Shorts** |
+| Mudar nomes da equipe e regras da aprovação | Gestão → **Empresa** |
+
+Os comandos continuam existindo para quem preferir o terminal: `cortes.bat --help` lista todos.
 
 ## Modo agência: vários streamers ao mesmo tempo
 

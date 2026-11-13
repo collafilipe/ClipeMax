@@ -156,6 +156,7 @@ PAGINA = r"""<!doctype html>
     <a href="/escritorio" aria-current="page">Escritório</a>
     <a href="/">Aprovação<span class="conta" id="pendentes" hidden></span></a>
     <a href="/escritorio/mesas">Lista</a>
+    <a href="/gestao">Gestão</a>
   </nav>
   <div id="comodos" role="group" aria-label="Ir para um cômodo"></div>
   <span id="demo" hidden>Demonstração</span>
@@ -174,6 +175,7 @@ PAGINA = r"""<!doctype html>
         <select id="paraTime" aria-label="Time que vai cuidar"></select>
         <input type="number" id="quantos" min="1" max="20" value="5" aria-label="Quantos cortes" title="Quantos cortes">
       </div>
+      <input type="text" id="jogo" placeholder="Só de um jogo (opcional), ex: gta 6" aria-label="Cortar só quando este jogo estiver na tela">
       <button type="submit">Enviar para o time</button>
       <p id="retorno" role="status"></p>
       <ul id="fila"></ul>
@@ -761,7 +763,7 @@ $("passar").addEventListener("submit", async ev => {
   botao.disabled = true; retorno.className = ""; retorno.textContent = "Enviando…";
   try {
     const r = await fetch("/api/pedido", { method: "POST", headers: { "Content-Type": "application/json" },
-                                           body: JSON.stringify({ url: $("link").value, time: $("paraTime").value, cortes: Number($("quantos").value) || 5 }) });
+                                           body: JSON.stringify({ url: $("link").value, time: $("paraTime").value, cortes: Number($("quantos").value) || 5, jogo: $("jogo").value }) });
     const j = await r.json().catch(() => ({}));
     retorno.className = r.ok ? "" : "erro"; retorno.textContent = r.ok ? j.mensagem : "Não deu: " + (j.erro || "erro");
     if (r.ok) $("link").value = "";

@@ -783,6 +783,7 @@ def atender_pedidos(a, arquivo):
             canal = _time_do_pedido(pedido, arquivo, info_vod(pedido["url"]))
             opcoes = agencia.opcoes_do_canal(a, canal)
             opcoes.cortes = pedido.get("cortes") or opcoes.cortes
+            opcoes.jogo = pedido.get("jogo") or opcoes.jogo
             threading.current_thread().name = f"canal:{canal.nome}"
             esteira.marcar_atividade(ATIVIDADE, canal.chave, "cortando uma live a pedido do CEO")
             _diario(opcoes, "lider", f"recebeu do CEO uma live para cortar: {pedido['url']}")

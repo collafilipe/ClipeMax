@@ -4,12 +4,13 @@ import mimetypes
 import os
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 import agencia
 import escritorio3d
 import esteira
 import expediente
+import gestao
 import pedidos
 from fontes import RAIZ, log
 
@@ -189,7 +190,7 @@ def _opcoes_da_vigia():
         return ""
 
 
-def _pedido(url, time, cortes):
+def _pedido(url, time, cortes, jogo=""):
     """
     O CEO passou um link. Canal: o time passa a acompanhar. Video: entra na fila e e cortado uma vez,
     pela vigia se o expediente estiver aberto, ou por um atendente avulso iniciado aqui.
@@ -201,7 +202,7 @@ def _pedido(url, time, cortes):
         aberto = expediente.situacao(RAIZ)["rodando"]
         return {"tipo": "canal", "mensagem": f"Time criado para {canal.nome}. " + (
             "Ele entra na próxima rodada da vigia." if aberto else "Abra o expediente para ele começar a acompanhar.")}
-    pedido = pedidos.adicionar(estado, link["url"], time, cortes)
+    pedido = pedidos.adicionar(estado, link["url"], time, cortes, jogo=jogo)
     esteira.registrar_evento(estado, "empresa", "ceo", f"passou uma live para cortar: {pedido['url']}")
     if not expediente.situacao(RAIZ)["rodando"]:
         expediente.abrir(RAIZ, _opcoes_da_vigia(), nome="avulso")
@@ -269,6 +270,18 @@ class Tela(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(corpo)))
             self.end_headers()
             self.wfile.write(corpo)
+        elif caminho == "/gestao":
+            corpo = gestao.PAGINA.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+        elif caminho in gestao.CONSULTAS:
+            try:
+                self._json(gestao.CONSULTAS[caminho](parse_qs(urlparse(self.path).query)))
+            except (ValueError, OSError) as err:
+                self._json({"ok": False, "erro": str(err)}, 400)
         elif caminho == "/api/escritorio":
             self._json(_escritorio())
         elif caminho.startswith("/v/"):
@@ -316,7 +329,7 @@ class Tela(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
-        if self.path not in ("/api/acao", "/api/expediente", "/api/pedido"):
+        if self.path not in ("/api/acao", "/api/expediente", "/api/pedido", *gestao.ACOES):
             self.send_error(404)
             return
         # exigir Origin proprio e JSON declarado impede que outra pagina aberta no navegador mexa nos cortes
@@ -333,8 +346,12 @@ class Tela(BaseHTTPRequestHandler):
             campos = dados.get("campos") if isinstance(dados, dict) else None
             if not isinstance(dados, dict) or not isinstance(campos, (dict, type(None))):
                 raise ValueError("formato invalido")
+            if self.path in gestao.ACOES:
+                self._json({"ok": True, **gestao.ACOES[self.path](dados)})
+                return
             if self.path == "/api/pedido":
-                self._json({"ok": True, **_pedido(str(dados.get("url", "")), str(dados.get("time", "")), dados.get("cortes"))})
+                self._json({"ok": True, **_pedido(str(dados.get("url", "")), str(dados.get("time", "")), dados.get("cortes"),
+                                                  str(dados.get("jogo", "")))})
                 return
             if self.path == "/api/expediente":
                 self._json({"ok": True, "vigia": _expediente(str(dados.get("acao", "")))})
@@ -453,6 +470,7 @@ PAGINA = r"""<!doctype html>
     <a href="/escritorio">Escritório</a>
     <a href="/" aria-current="page">Aprovação</a>
     <a href="/escritorio/mesas">Lista</a>
+    <a href="/gestao">Gestão</a>
   </nav>
 </header>
 <div class="barra">
@@ -715,6 +733,7 @@ ESCRITORIO = r"""<!doctype html>
     <a href="/escritorio">Escritório</a>
     <a href="/">Aprovação</a>
     <a href="/escritorio/mesas" aria-current="page">Lista</a>
+    <a href="/gestao">Gestão</a>
   </nav>
   <span id="hora"></span>
 </header>

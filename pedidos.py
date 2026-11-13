@@ -90,7 +90,7 @@ def listar(pasta, quantos=20):
     return _ler(pasta)[-quantos:]
 
 
-def adicionar(pasta, url, time="", cortes=5, agora=None):
+def adicionar(pasta, url, time="", cortes=5, agora=None, jogo=""):
     """
     Poe um video na fila. `time` e a chave do time escolhido pelo CEO ("" = o time do canal do video).
     Devolve o pedido; se o mesmo video ja esta na fila ou sendo cortado, devolve o que ja existe.
@@ -106,6 +106,8 @@ def adicionar(pasta, url, time="", cortes=5, agora=None):
             return repetido
         pedido = {"id": f"{agora:%Y%m%d%H%M%S}-{len(lista)}", "url": link["url"], "plataforma": link["plataforma"],
                   "canal": link["canal"], "time": time or "", "cortes": max(1, min(20, int(cortes or 5))),
+                  # jogo: so corta trechos em que este jogo esta na tela (mesmo formato da opcao --jogo)
+                  "jogo": " ".join(str(jogo or "").split())[:80],
                   "situacao": "pendente", "criado_em": agora.isoformat(timespec="seconds"), "detalhe": ""}
         # o historico e so para a tela: ficam os 100 pedidos mais recentes
         _gravar(pasta, [*lista, pedido][-100:])
