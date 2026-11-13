@@ -1,0 +1,6 @@
+# so para quem mexe no codigo: testes e lint
+#   .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+#   .venv\Scripts\python.exe -m pytest
+#   .venv\Scripts\python.exe -m ruff check .
+pytest>=9
+ruff>=0.9

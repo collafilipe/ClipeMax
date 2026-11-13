@@ -1,0 +1,19 @@
+# ambiente e caches
+.venv/
+__pycache__/
+tmp/
+
+# videos e historico de cada usuario
+prontos/
+aprovados/
+descartados/
+estado/
+processados.txt
+
+# segredos: nunca enviar (chave da IA, chaves dos apps e tokens das contas de postagem)
+chave_api.txt
+segredos/
+
+# pacotes e sobras
+*.zip
+modelos/_baixado/

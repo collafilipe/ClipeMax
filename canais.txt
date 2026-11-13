@@ -1,0 +1,27 @@
+# Canais acompanhados pela vigia. Um link por linha; linhas com # sao ignoradas.
+#
+# Para ligar a vigia no lancamento (so corta quando o jogo na tela for GTA 6):
+#   cortes.bat --vigiar canais.txt --jogo "gta 6" --tags "#gta6 #gtavi"
+#
+# Formatos:  Twitch   https://www.twitch.tv/NOME/videos?filter=archives
+#            Kick     https://kick.com/NOME/videos
+#            YouTube  https://www.youtube.com/@NOME/streams   (so corta depois que a live termina)
+
+# Opcoes por canal, depois do link, separadas por barra vertical (todas opcionais; veja o README):
+#   https://kick.com/NOME/videos | cliente=Fulano | autorizado=sim | prioridade=1 | por_hora=2 | mensalidade=800 | valor_mil_views=1.5
+# Ver o resultado por canal:  cortes.bat --painel canais.txt
+# funcionario=NOME batiza o lider do time do canal no escritorio (cortes.bat --revisar, aba Escritorio).
+
+# --- Brasil
+https://kick.com/coringa/videos
+https://kick.com/paulinholokobr/videos
+https://www.twitch.tv/alanzoka/videos?filter=archives
+
+# --- Internacionais (a legenda sai no idioma falado; titulo e gancho em portugues)
+https://www.twitch.tv/kaicenat/videos?filter=archives
+https://kick.com/xqc/videos
+https://kick.com/adinross/videos
+https://www.twitch.tv/lacy/videos?filter=archives
+
+# --- YouTube: nao da para cortar com a live no ar, so depois que ela termina
+https://www.youtube.com/@IShowSpeed/streams

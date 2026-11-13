@@ -1,0 +1,18 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# F = erro real (nome indefinido, import sobrando); E9 = sintaxe; B = armadilhas comuns.
+# O estilo (E/W) fica de fora por enquanto: o codigo que ja existia nao foi escrito com lint.
+select = ["F", "E9", "B"]
+# B905: os zip() do codigo original juntam listas montadas lado a lado; strict= so mudaria o tipo do erro.
+ignore = ["B905"]
+
+[tool.ruff.lint.per-file-ignores]
+# variavel "aspecto" atribuida e nunca usada em escolher_webcams: ja era assim, fica marcada para revisar
+"video.py" = ["F841"]

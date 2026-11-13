@@ -1,0 +1,9 @@
+yt-dlp>=2026.10.26
+faster-whisper==1.2.1
+numpy==2.5.4
+onnxruntime==1.31.1
+# a serie 5.x do OpenCV removeu recursos usados aqui; manter na 4.x
+opencv-python-headless==4.14.0.94
+# so para o caminho opcional da API paga (chave_api.txt); o padrao usa o Claude Code instalado
+anthropic==2.8.0
+jiter==0.18.0
