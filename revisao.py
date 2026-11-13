@@ -448,7 +448,7 @@ PAGINA = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <h1 id="marca">Agência de Cortes</h1>
+  <h1 id="marca">ClipeMax</h1>
   <nav>
     <a href="/escritorio">Escritório</a>
     <a href="/" aria-current="page">Aprovação</a>
@@ -710,7 +710,7 @@ ESCRITORIO = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <p class="marca" id="marca">Agência de Cortes</p>
+  <p class="marca" id="marca">ClipeMax</p>
   <nav>
     <a href="/escritorio">Escritório</a>
     <a href="/">Aprovação</a>

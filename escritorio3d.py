@@ -151,7 +151,7 @@ PAGINA = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <p class="marca" id="marca">Agência de Cortes</p>
+  <p class="marca" id="marca">ClipeMax</p>
   <nav>
     <a href="/escritorio" aria-current="page">Escritório</a>
     <a href="/">Aprovação<span class="conta" id="pendentes" hidden></span></a>
@@ -928,7 +928,7 @@ function simulador() {
     for (const chave of Object.keys(fazendo)) if (Math.random() < 0.18) delete fazendo[chave];
     const fila = e => cortes.filter(c => c.etapa === e).length;
     return {
-      agora: hora(), empresa: "Agência de Cortes", etapas: [], cortes: cortes.map(c => ({ ...c })), vigia: { rodando: true, desde: hora() }, eventos: [...eventos], ticker: [],
+      agora: hora(), empresa: "ClipeMax", etapas: [], cortes: cortes.map(c => ({ ...c })), vigia: { rodando: true, desde: hora() }, eventos: [...eventos], ticker: [],
       times: nomes.map(([chave, canal, nivel]) => ({ chave, canal, autorizado: nivel !== "pressao", ligado: true, situacao: "olhando a live",
         humor: { nivel, rotulo: humores[nivel][0], taxa: humores[nivel][1], decisoes: 10, efeito: humores[nivel][2] },
         feitos_hoje: feitos[chave], aprovados_hoje: bons[chave], aprovados_ceo: bons[chave], fila: cortes.filter(c => c.canal_chave === chave && c.etapa === "lider_time").length,

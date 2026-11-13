@@ -6,7 +6,7 @@ set "PAUSA=pause"
 if /i "%~1"=="/s" set "PAUSA=rem"
 set "REABRIR="
 
-echo == Instalacao da Agencia de Cortes ==
+echo == Instalacao da ClipeMax ==
 echo.
 
 call :precisa "Python 3.12" "py -3.12 --version" Python.Python.3.12
@@ -30,7 +30,7 @@ echo [2/3] Baixando as bibliotecas (alguns minutos na primeira vez)...
 if errorlevel 1 ( echo Falha ao instalar as bibliotecas. Confira a internet e rode de novo. & goto falhou )
 
 echo [3/3] Criando o atalho na area de trabalho...
-powershell -NoProfile -Command "$a = (New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Agencia de Cortes.lnk'); $a.TargetPath = '%~dp0iniciar.bat'; $a.WorkingDirectory = '%~dp0'; $a.Save()"
+powershell -NoProfile -Command "$a = (New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\ClipeMax.lnk'); $a.TargetPath = '%~dp0iniciar.bat'; $a.WorkingDirectory = '%~dp0'; $a.Save()"
 if errorlevel 1 echo Nao consegui criar o atalho; use o iniciar.bat desta pasta.
 
 echo.
@@ -41,7 +41,7 @@ if errorlevel 1 (
   echo para entrar na sua conta.
   echo.
 )
-echo Pronto. Abra pelo atalho "Agencia de Cortes" na area de trabalho, ou pelo iniciar.bat.
+echo Pronto. Abra pelo atalho "ClipeMax" na area de trabalho, ou pelo iniciar.bat.
 echo Na primeira live o modelo de legenda (cerca de 500 MB) e baixado sozinho.
 %PAUSA%
 exit /b 0

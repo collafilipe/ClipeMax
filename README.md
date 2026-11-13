@@ -1,4 +1,4 @@
-# Ferramenta de cortes de lives
+# ClipeMax
 
 Gera cortes verticais (TikTok e YouTube Shorts) a partir de lives da Twitch, Kick e YouTube.
 Acha os melhores momentos pelo áudio, pelo chat e pelos clipes de espectadores, enquadra a webcam,
@@ -35,12 +35,12 @@ Cuidados conhecidos:
 1. Coloque a pasta num caminho curto, por exemplo `Documentos\Business\corte colla`. Caminho muito
    longo estoura o limite de 260 caracteres do Windows nas pastas de cortes.
 2. Dê dois cliques em `instalar.bat`. Ele confere Python 3.12 e ffmpeg (e oferece instalar pelo winget
-   se faltarem), cria o ambiente, baixa as bibliotecas e põe o atalho **Agência de Cortes** na área de trabalho.
+   se faltarem), cria o ambiente, baixa as bibliotecas e põe o atalho **ClipeMax** na área de trabalho.
 3. Instale o Claude Code e rode `claude` uma vez para entrar na conta. Sem ele os cortes saem sem
    nota, título e legenda da IA, e a gerência não dá parecer.
 4. Abra pelo atalho (ou `iniciar.bat`). O escritório abre no navegador.
 
-**Levar para outro PC:** rode `empacotar.bat`. Ele gera `agencia-de-cortes.zip` (uns 14 MB) com o
+**Levar para outro PC:** rode `empacotar.bat`. Ele gera `clipemax.zip` (uns 14 MB) com o
 código, o `canais.txt`, o `empresa.json` e as posições de webcam aprendidas. Ficam de fora o ambiente,
 os vídeos, o estado do expediente e os segredos. No outro PC: extraia, rode `instalar.bat` e conecte
 as contas de postagem de novo.

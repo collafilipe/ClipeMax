@@ -36,7 +36,7 @@ ROTULOS = {"lider_time": "Líder do time", "qualidade": "Qualidade", "compliance
 _ANTIGAS = {"revisor": "lider_time", "gestor": "gerente", "lider": "diretor"}
 
 EMPRESA_PADRAO = {
-    "nome": "Agência de Cortes",
+    "nome": "ClipeMax",
     # nomes que aparecem na tela do CEO e no escritorio; troque em empresa.json para batizar a equipe
     "qualidade": "Analista de qualidade",
     "compliance": "Analista de compliance",
