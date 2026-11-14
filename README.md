@@ -19,7 +19,7 @@ conferir que funciona, não reescrever. Passos:
 3. Rode `instalar.bat`. Ele cria a `.venv` e instala o `requirements.txt`.
 4. Teste com uma live curta já encerrada:
    `cortes.bat "LINK_DA_LIVE" --cortes 3`
-   Na primeira vez o modelo de legenda (Whisper "small", ~500 MB) é baixado sozinho.
+   Na primeira vez o modelo de legenda (Whisper "large-v3-turbo", ~1,6 GB) é baixado sozinho.
 5. Abra a tela de revisão: `cortes.bat --revisar` e acesse http://127.0.0.1:8765/
 
 Cuidados conhecidos:

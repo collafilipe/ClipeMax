@@ -198,3 +198,13 @@ def test_ler_cortes_usa_criado_em_e_ignora_json_quebrado(tmp_path):
     assert len(cortes) == 1
     assert cortes[0]["situacao"] == "aprovado"
     assert cortes[0]["quando"] == datetime.datetime(2026, 11, 10, 8, 30)
+
+
+def test_idioma_por_canal_troca_o_da_linha_de_comando():
+    br, fora = agencia.interpretar_carteira("https://kick.com/a/videos | idioma=PT\nhttps://kick.com/b/videos | idioma=auto")
+    a = argparse.Namespace(idioma="auto")
+    assert agencia.opcoes_do_canal(a, br).idioma == "pt"
+    assert agencia.opcoes_do_canal(a, fora).idioma == "auto"
+    assert agencia.linha_do_canal(br) == "https://kick.com/a/videos | idioma=pt"
+    with pytest.raises(agencia.ErroDeCarteira):
+        agencia.interpretar_carteira("https://kick.com/a/videos | idioma=portugues do brasil")

@@ -39,6 +39,8 @@ class Canal:
     cortes: int | None = None
     jogo: str | None = None
     tags: str | None = None
+    # idioma=pt: a legenda nao tenta adivinhar a lingua (em trecho barulhento o palpite erra e a fala sai trocada)
+    idioma: str | None = None
     mensalidade: float = 0.0
     valor_mil_views: float = 0.0
     # vigiar=nao: o time existe, mas so trabalha nos links que o CEO passar; a vigia nao acompanha o canal
@@ -94,7 +96,18 @@ def _conta(valor, n):
     return v
 
 
+def _idioma(valor, n):
+    v = valor.strip().lower()
+    if v == "auto":
+        return None
+    # codigo de lingua do Whisper: pt, en, es...
+    if not re.fullmatch(r"[a-z]{2,3}", v):
+        raise ErroDeCarteira(f"linha {n}: idioma aceita auto ou um codigo como pt, en, es; veio \"{valor}\"")
+    return v
+
+
 _CAMPOS = {
+    "idioma": _idioma,
     "cliente": lambda v, n: v.strip(),
     "autorizado": _bool,
     "prioridade": lambda v, n: min(9, _numero(v, n, int, 1)),
@@ -166,8 +179,8 @@ def adicionar_canal(arquivo, url, **opcoes):
 
 
 # ordem em que as opcoes sao escritas de volta no arquivo: primeiro quem e, depois regras, depois contrato
-_ORDEM = ("cliente", "funcionario", "autorizado", "vigiar", "prioridade", "por_hora", "cortes", "jogo", "tags", "conta",
-          "mensalidade", "valor_mil_views")
+_ORDEM = ("cliente", "funcionario", "autorizado", "vigiar", "prioridade", "por_hora", "cortes", "jogo", "tags", "idioma",
+          "conta", "mensalidade", "valor_mil_views")
 
 
 def linha_do_canal(canal):
@@ -225,7 +238,7 @@ def remover_canal(arquivo, chave):
 
 def opcoes_do_canal(a, canal):
     """Copia das opcoes da linha de comando com o que o contrato deste canal troca. A original nao muda."""
-    proprias = {k: getattr(canal, k) for k in ("por_hora", "cortes", "jogo", "tags") if getattr(canal, k) is not None}
+    proprias = {k: getattr(canal, k) for k in ("por_hora", "cortes", "jogo", "tags", "idioma") if getattr(canal, k) is not None}
     return argparse.Namespace(**{**vars(a), **proprias, "prioridade": canal.prioridade, "canal_chave": canal.chave})
 
 

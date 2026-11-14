@@ -316,7 +316,7 @@ $("dias").onchange = desempenho;
 
 // ---------------------------------------------------------- times e empresa
 const CAMPOS_DO_TIME = [["cliente", "Nome do cliente", "text"], ["funcionario", "Nome do líder do time", "text"], ["jogo", "Só cortar este jogo (vazio = qualquer)", "text"],
-  ["tags", "Hashtags fixas", "text"], ["por_hora", "Cortes por hora de live (padrão 3)", "number"], ["cortes", "Cortes na primeira leitura (padrão 8)", "number"],
+  ["tags", "Hashtags fixas", "text"], ["idioma", "Idioma da fala (pt, en...; vazio = detectar)", "text"], ["por_hora", "Cortes por hora de live (padrão 3)", "number"], ["cortes", "Cortes na primeira leitura (padrão 8)", "number"],
   ["prioridade", "Prioridade (1 passa na frente, 9 por último)", "number"], ["conta", "Conta de postagem", "text"],
   ["mensalidade", "Mensalidade do contrato (R$)", "number"], ["valor_mil_views", "Valor por mil views (R$)", "number"]];
 function cartaoDoTime(t) {

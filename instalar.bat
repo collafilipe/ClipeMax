@@ -42,7 +42,7 @@ if errorlevel 1 (
   echo.
 )
 echo Pronto. Abra pelo atalho "ClipeMax" na area de trabalho, ou pelo iniciar.bat.
-echo Na primeira live o modelo de legenda (cerca de 500 MB) e baixado sozinho.
+echo Na primeira live o modelo de legenda (cerca de 1,6 GB) e baixado sozinho.
 %PAUSA%
 exit /b 0
 

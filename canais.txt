@@ -12,10 +12,12 @@
 # Ver o resultado por canal:  cortes.bat --painel canais.txt
 # funcionario=NOME batiza o lider do time do canal no escritorio (cortes.bat --revisar, aba Escritorio).
 
+# idioma=pt fixa a lingua da legenda (sem isso ela e detectada por corte, e em trecho barulhento o palpite erra).
+
 # --- Brasil
-https://kick.com/coringa/videos
-https://kick.com/paulinholokobr/videos
-https://www.twitch.tv/alanzoka/videos?filter=archives
+https://kick.com/coringa/videos | idioma=pt
+https://kick.com/paulinholokobr/videos | idioma=pt
+https://www.twitch.tv/alanzoka/videos?filter=archives | idioma=pt
 
 # --- Internacionais (a legenda sai no idioma falado; titulo e gancho em portugues)
 https://www.twitch.tv/kaicenat/videos?filter=archives

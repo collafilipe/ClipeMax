@@ -1038,7 +1038,9 @@ def main():
                    help="usa sempre a mesma cor e fonte na legenda, em vez de variar entre os cortes")
     p.add_argument("--idioma", default="auto",
                    help="idioma da fala para a legenda: 'auto' (padrao) detecta por corte; ou pt, en, es...")
-    p.add_argument("--modelo", default="small", help="modelo do Whisper: base, small, medium")
+    # large-v3-turbo: medido em cortes de GTA RP, entende a fala bem melhor que o small por ~2x o tempo
+    p.add_argument("--modelo", default="large-v3-turbo",
+                   help="modelo do Whisper: large-v3-turbo (padrao), medium, small (mais rapido, erra mais)")
     p.add_argument("--margem-legenda", type=int, default=420, dest="margem_legenda")
     p.add_argument("--pular-inicio", type=int, default=180, dest="pular_inicio",
                    help="segundos do comeco da live ignorados na escolha")
