@@ -29,6 +29,7 @@ from pathlib import Path
 import numpy as np
 
 import agencia
+import aviso
 import esteira
 import ia
 import musica
@@ -391,7 +392,19 @@ def gerar_cortes(url, info, hls_video, picos, a, n_final, tmp, saida, total, rms
             parcial.unlink(missing_ok=True)
             log(f"   {nome}: falhou ao renderizar ({erro.strip()[-200:]})")
             continue
-        tags = " ".join(t for t in (a.tags.strip(), f"#{canal.lower()}", "#cortes", "#fyp") if t)
+        # Contexto no video: corte cru (so o trecho da live com legenda) e tratado como conteudo reutilizado.
+        # A frase da IA entra por padrao depois do gancho; o video sem ela fica ao lado (.base), entao a
+        # tela de aprovacao troca pela opiniao do dono do canal ou tira, como qualquer comentario.
+        contexto = limpar((c["ia"] or {}).get("contexto", "")).strip()
+        sem_contexto = None
+        if contexto and not getattr(a, "sem_contexto", False):
+            com_contexto = tmp / f"{nome}_contexto.mp4"
+            ok, erro = video.queimar_comentario(parcial, com_contexto, contexto, 4.2 if gancho else 0.0)
+            if ok:
+                sem_contexto, parcial = parcial, com_contexto
+            else:
+                log(f"   {nome}: nao consegui escrever o contexto no video, segue sem ({erro.strip()[-120:]})")
+        tags =" ".join(t for t in (a.tags.strip(), f"#{canal.lower()}", "#cortes", "#fyp") if t)
         dados = {
             "canal": info["canal"], "live": info["titulo"], "origem": url, "ordem": ordem, "pico": int(c["pico"]),
             # o painel da agencia agrupa por canal_chave e filtra o periodo por criado_em
@@ -403,7 +416,9 @@ def gerar_cortes(url, info, hls_video, picos, a, n_final, tmp, saida, total, rms
             "titulo": limpar((c["ia"] or {}).get("titulo", "")), "gancho": limpar(gancho or ""),
             "ofensas": ofensas,
             "jogo": (c["ia"] or {}).get("jogo", ""),
-            "contexto": (c["ia"] or {}).get("contexto", ""), "comentario": "",
+            "contexto": (c["ia"] or {}).get("contexto", ""),
+            # comentario_auto: o texto no video e o contexto da IA, nao a opiniao do dono (o desempenho separa os dois)
+            "comentario": contexto if sem_contexto else "", "comentario_auto": bool(sem_contexto),
             "cutscene": bool((c["ia"] or {}).get("cutscene", False)),
             "musica": som["nivel"], "musica_pct": som["musica_pct"], "musica_forte_s": som["musica_forte_s"],
             "tiktok": limpar((c["ia"] or {}).get("legenda_tiktok") or tags),
@@ -411,6 +426,8 @@ def gerar_cortes(url, info, hls_video, picos, a, n_final, tmp, saida, total, rms
             "enquadramento": "camera cheia" if isinstance(cam, tuple) else ("webcam + jogo" if cam else "fundo desfocado"),
         }
         (saida / f"{nome}.json").write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
+        if sem_contexto:
+            os.replace(sem_contexto, saida / f"{nome}.base")
         os.replace(parcial, saida / f"{nome}.mp4")
         feitos.append(c["pico"])
         _diario(a, "edicao", f"corte {nome} pronto, entregue ao lider" + (f": {dados['titulo']}" if dados["titulo"] else ""))
@@ -844,8 +861,12 @@ def rodar_esteira(carteira, a):
         empresa = esteira.carregar_empresa(RAIZ / "empresa.json")
         gestor = None if (a.sem_ia or ia.modo() != "assinatura") else ia.parecer_do_gestor
         with FILA.vez(1):  # os quadros usam ffmpeg; a esteira passa na frente porque e rapida e destrava o CEO
-            return esteira.rodar(PASTAS, carteira, empresa, gestor, _quadros_do_corte, log=log,
-                                 evento=lambda chave, papel, texto: esteira.registrar_evento(ESTADO, chave, papel, texto))
+            resumo = esteira.rodar(PASTAS, carteira, empresa, gestor, _quadros_do_corte, log=log,
+                                   evento=lambda chave, papel, texto: esteira.registrar_evento(ESTADO, chave, papel, texto))
+        if resumo["subiram_ao_ceo"] and not getattr(a, "sem_aviso", False):
+            aviso.avisar(*aviso.texto_dos_cortes(resumo["subiram_ao_ceo"], resumo["aguardando_ceo"]),
+                         link=f"http://127.0.0.1:{getattr(a, 'porta', 8765)}/")
+        return resumo
     except Exception as err:  # a esteira nunca pode derrubar a vigia
         log(f"ERRO na esteira: {err}")
         return None
@@ -965,7 +986,8 @@ def desempenho():
     grupos = [("Streamer", lambda d: d.get("canal") or "?"), ("Jogo", lambda d: d.get("jogo") or "?"),
               ("Enquadramento", lambda d: d.get("enquadramento") or "?"), ("Nota da IA", faixa_nota),
               ("Musica", lambda d: d.get("musica") or "?"), ("Duracao", faixa_duracao),
-              ("Com comentario seu", lambda d: "sim" if d.get("comentario") else "nao")]
+              ("Texto no video", lambda d: "sem texto" if not d.get("comentario") else
+               "contexto da IA" if d.get("comentario_auto") else "comentario seu")]
     for titulo, chave in grupos:
         tabela = {}
         for d, v in cortes:
@@ -1028,6 +1050,11 @@ def main():
     p.add_argument("--zoom", type=float, default=0.75,
                    help="layout blur: fracao da largura da tela que aparece (1.0 = tela inteira)")
     p.add_argument("--gancho", default="", help="texto fixo no topo nos primeiros segundos (a IA gera um por corte)")
+    p.add_argument("--sem-contexto", action="store_true", dest="sem_contexto",
+                   help="nao escreve no video a frase de contexto da IA (por padrao ela entra depois do gancho; "
+                        "da para trocar pela sua opiniao ou tirar na tela de aprovacao)")
+    p.add_argument("--sem-aviso", action="store_true", dest="sem_aviso",
+                   help="nao mostra a notificacao do Windows quando um corte chega para a sua aprovacao")
     p.add_argument("--tags", default="", help='hashtags do jogo usadas quando nao ha IA, ex: "#gta6 #gtavi"')
     p.add_argument("--sem-credito", action="store_true", dest="sem_credito", help="nao escreve @canal no video")
     p.add_argument("--sem-mascara", action="store_true", dest="sem_mascara",

@@ -43,7 +43,8 @@ def _listar():
                 "duracao": dados.get("duracao"), "enquadramento": dados.get("enquadramento", ""),
                 "fala": dados.get("fala", ""), "origem": dados.get("origem", ""),
                 "jogo": dados.get("jogo", ""), "contexto": dados.get("contexto", ""),
-                "comentario": dados.get("comentario", ""), "cutscene": bool(dados.get("cutscene")),
+                "comentario": dados.get("comentario", ""), "comentario_auto": bool(dados.get("comentario_auto")),
+                "cutscene": bool(dados.get("cutscene")),
                 "ofensas": int(dados.get("ofensas") or 0),
                 "musica": dados.get("musica", ""), "musica_pct": dados.get("musica_pct"),
                 "versao": int(mp4.stat().st_mtime),
@@ -160,6 +161,7 @@ def _comentar(ident, texto):
         novo.unlink(missing_ok=True)
         return False, f"arquivo em uso: {e}"
     dados["comentario"] = texto
+    dados["comentario_auto"] = False  # a partir daqui o texto (ou a falta dele) e escolha do dono do canal
     lado.write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
     return True, ""
 
@@ -587,7 +589,9 @@ function cartao(c) {
   corpo.append(cxTitulo, cxTiktok, cxShorts);
   const [cxComent, coment] = campo("Seu comentário no vídeo", c.comentario || c.contexto, 2);
   coment.maxLength = 160;
-  const dica = el("p", { className: "motivo", textContent: c.comentario
+  const dica = el("p", { className: "motivo", textContent: c.comentario_auto
+    ? "Este contexto foi escrito pela IA e já está no vídeo. Reescreva com a sua opinião e aplique (é o que mais diferencia o corte), ou apague o texto e aplique para tirar."
+    : c.comentario
     ? "Este comentário está no vídeo. Edite e aplique de novo, ou apague o texto e aplique para tirar."
     : (c.contexto ? "Rascunho de contexto escrito pela IA. Reescreva com a sua opinião e aplique." : "Aparece numa caixa no topo do vídeo.") });
   const aplicar = bt("Aplicar comentário no vídeo", async () => {

@@ -18,6 +18,13 @@
 https://kick.com/coringa/videos | idioma=pt
 https://kick.com/paulinholokobr/videos | idioma=pt
 https://www.twitch.tv/alanzoka/videos?filter=archives | idioma=pt
+https://kick.com/yuri22/videos | idioma=pt
+https://www.twitch.tv/davyjones/videos?filter=archives | idioma=pt
+https://www.twitch.tv/cellbit/videos?filter=archives | idioma=pt
+# Bistecone: o canal existe na Kick e na Twitch e nao tinha live gravada em nenhuma (14/11/2026).
+# Os dois ficam na lista ate ele abrir live; depois, apague a linha da plataforma que ele nao usa.
+https://kick.com/bistecone/videos | idioma=pt
+https://www.twitch.tv/bistecone/videos?filter=archives | idioma=pt
 
 # --- Internacionais (a legenda sai no idioma falado; titulo e gancho em portugues)
 https://www.twitch.tv/kaicenat/videos?filter=archives
