@@ -12,6 +12,8 @@ ROSTO_GRANDE = 0.1025  # rosto acima dessa fracao da largura = camera ocupando q
 AMOSTRAS = 16
 ARQ_WEBCAMS = RAIZ / "webcams.json"
 MODELO_ROSTO = RAIZ / "modelos" / "yunet.onnx"
+PASTA_FUNDOS = RAIZ / "fundos"  # videos do dono do canal para a metade de baixo dos cortes de pessoa falando
+ARQ_LOGO = RAIZ / "logo.png"  # logo do canal de cortes; se existir, entra no topo dos cortes em moldura
 
 # ------------------------------------------------------------- trecho bruto
 
@@ -177,8 +179,37 @@ def estilo_do_corte(semente, fixo=False):
     return CORES[s % len(CORES)], FONTES[(s // 7) % len(FONTES)], (s // 3) % 2 == 1
 
 
-def escrever_ass(palavras, destino, margem_v, gancho=None, credito=None, duracao=0.0, estilo=None, mascara=True):
-    """Legenda palavra a palavra, gancho no topo nos primeiros segundos e credito discreto."""
+def logo_do_canal():
+    """Caminho da logo do canal de cortes, ou None se o dono ainda nao pos o arquivo logo.png na pasta."""
+    return ARQ_LOGO if ARQ_LOGO.exists() and ARQ_LOGO.stat().st_size > 100 else None
+
+
+def escolher_fundo(semente, dur, pasta=None, duracao=None):
+    """
+    Video de fundo para um corte de `dur` segundos: (arquivo, inicio em segundos), ou None se a pasta esta vazia.
+    A escolha sai do numero do corte, entao refazer o mesmo corte da o mesmo fundo no mesmo ponto.
+    """
+    import random
+    pasta = PASTA_FUNDOS if pasta is None else pasta
+    arquivos = sorted(f for f in pasta.iterdir() if f.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm")) \
+        if pasta.exists() else []
+    if not arquivos:
+        return None
+    sorteio = random.Random(int(semente))
+    arquivo = arquivos[sorteio.randrange(len(arquivos))]
+    total = (duracao or duracao_de)(arquivo)
+    if not total:
+        return None
+    return arquivo, round(sorteio.uniform(0, max(0.0, total - dur)), 2)
+
+
+def escrever_ass(palavras, destino, margem_v, gancho=None, credito=None, duracao=0.0, estilo=None, mascara=True,
+                 moldura=None):
+    """
+    Legenda palavra a palavra, gancho no topo nos primeiros segundos e credito discreto.
+    `moldura` e para o corte sem webcam (jogo no meio, faixas livres em cima e embaixo): a frase fica no topo
+    o video inteiro, em vez de sumir aos 4 s. Vale "logo" (a frase desce para caber a logo acima) ou "frase".
+    """
     if mascara:
         palavras = [(i, f, mascarar(t)[0]) for i, f, t in palavras]
         gancho = mascarar(gancho)[0] if gancho else gancho
@@ -213,7 +244,13 @@ def escrever_ass(palavras, destino, margem_v, gancho=None, credito=None, duracao
     ]
     if credito and duracao:
         linhas.append(f"Dialogue: 0,{t_ass(0)},{t_ass(duracao)},Cred,,0,0,0,,{_limpo(credito)}")
-    if gancho:
+    if gancho and moldura:
+        # frase fixa da moldura: menor que o gancho comum porque e uma frase inteira, nao duas palavras
+        topo = 335 if moldura == "logo" else 170
+        linhas.insert(linhas.index("") + 3, f"Style: Frase,{fonte},{tam - 24},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+                      f"-1,0,0,0,100,100,0,0,1,6,2,8,70,70,{topo},1")
+        linhas.append(f"Dialogue: 2,{t_ass(0)},{t_ass(duracao or 4.0)},Frase,,0,0,0,,{{\\q0}}{_limpo(gancho).upper()}")
+    elif gancho:
         linhas.append(f"Dialogue: 2,{t_ass(0)},{t_ass(min(4.0, duracao or 4.0))},Gancho,,0,0,0,,"
                       f"{{\\q0\\fad(0,250)}}{_limpo(gancho).upper()}")
     for k, g in enumerate(grupos):
@@ -231,10 +268,13 @@ def escrever_ass(palavras, destino, margem_v, gancho=None, credito=None, duracao
     destino.write_text("\n".join(linhas), encoding="utf-8")
 
 
-def queimar_comentario(base, destino, texto, inicio=0.0):
+def queimar_comentario(base, destino, texto, inicio=0.0, voz=None, embaixo=False):
     """
     Escreve o comentario do dono do canal no topo do video, numa caixa branca, de `inicio` ate o fim.
     `base` e o video sem comentario; `destino` e gravado so se tudo der certo. Devolve (ok, erro).
+    Com `voz` (arquivo de audio com o comentario falado), a fala entra junto com a caixa e o som do corte
+    abaixa enquanto ela dura. `embaixo` poe a caixa na faixa de baixo: e o lugar dela nos cortes em moldura,
+    em que o topo ja tem a logo e a frase.
     """
     import tempfile
     from pathlib import Path
@@ -247,15 +287,78 @@ def queimar_comentario(base, destino, texto, inicio=0.0):
     ass = "\n".join([
         "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1080", "PlayResY: 1920", "WrapStyle: 0", "",
         "[V4+ Styles]", fmt,
-        "Style: Coment,Arial,48,&H00101010,&H000000FF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,3,14,0,8,"
-        "90,90,110,1",
+        "Style: Coment,Arial,48,&H00101010,&H000000FF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,3,14,0,"
+        + ("2,90,90,330,1" if embaixo else "8,90,90,110,1"),
         "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         f"Dialogue: 3,{t_ass(min(inicio, max(0.0, dur - 1)))},{t_ass(dur)},Coment,,0,0,0,,{{\\fad(200,0)}}{_limpo(texto)}",
     ])
     destino = Path(destino)
     with tempfile.TemporaryDirectory(prefix="cortes_coment_") as pasta:
         (Path(pasta) / "c.ass").write_text(ass, encoding="utf-8")
-        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(Path(base).resolve()), "-vf", "ass=c.ass",
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(Path(base).resolve())]
+        fala = duracao_de(voz) if voz else 0.0
+        if fala:
+            # a fala comeca um instante depois da caixa aparecer; o corte fica a 30% do volume enquanto ela dura
+            a, b = inicio + 0.3, inicio + 0.3 + fala + 0.2
+            cmd += ["-i", str(Path(voz).resolve()), "-filter_complex",
+                    f"[0:v]ass=c.ass[v];[0:a]volume='if(between(t,{a:.2f},{b:.2f}),0.3,1)':eval=frame[a0];"
+                    f"[1:a]aresample=48000,adelay={int(a * 1000)}:all=1,volume=1.5[a1];"
+                    "[a0][a1]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]",
+                    "-map", "[v]", "-map", "[a]", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2"]
+        else:
+            cmd += ["-vf", "ass=c.ass", "-c:a", "copy"]
+        cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-maxrate", "8M", "-bufsize", "16M",
+                "-movflags", "+faststart", "-f", "mp4", str(destino.resolve())]
+        r = subprocess.run(cmd, cwd=pasta, capture_output=True, text=True, errors="replace")
+    ok = r.returncode == 0 and destino.exists() and destino.stat().st_size > 10000
+    if not ok:
+        destino.unlink(missing_ok=True)
+    return ok, (r.stderr or "")[-300:]
+
+
+# Enquadramentos de pessoa falando, e o pedaco do corte pronto que vira a metade de cima quando entra uma
+# imagem embaixo: (y do recorte, altura do recorte). O que sobra ate 1920 e a altura da imagem.
+RECORTE_DA_IMAGEM = {"camera cheia": (380, 1200), "camera + video embaixo": (0, 1080)}
+
+
+def por_imagem(base, destino, imagem, titulo, enquadramento):
+    """
+    Troca a metade de baixo do corte por uma imagem do assunto (escolhida pelo dono do canal) e poe uma faixa
+    com o titulo na emenda. So vale para corte de pessoa falando: nos outros a metade de baixo e o jogo.
+    A imagem se aproxima devagar, para a tela nao ficar parada. `destino` so e gravado se der certo.
+    Devolve (ok, erro).
+    """
+    import tempfile
+    from pathlib import Path
+    if enquadramento not in RECORTE_DA_IMAGEM:
+        return False, "imagem embaixo so vale para corte de pessoa falando (camera em tela cheia)"
+    y, alto = RECORTE_DA_IMAGEM[enquadramento]
+    baixo, dur = 1920 - alto, duracao_de(base)
+    if not dur:
+        return False, "nao consegui ler o video"
+    fmt = ("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, "
+           "Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+           "MarginL, MarginR, MarginV, Encoding")
+    ass = "\n".join([
+        "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1080", "PlayResY: 1920", "WrapStyle: 0", "",
+        "[V4+ Styles]", fmt,
+        # faixa vermelha com letra branca, logo abaixo da emenda: em cima dela taparia a legenda do corte
+        "Style: Faixa,Impact,62,&H00FFFFFF,&H000000FF,&H001A1AC8,&H00000000,-1,0,0,0,100,100,1,0,3,16,0,5,110,110,0,1",
+        "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+        f"Dialogue: 5,{t_ass(0)},{t_ass(dur)},Faixa,,0,0,0,,{{\\pos(540,{alto + 100})}}{_limpo(titulo).upper()}",
+    ])
+    destino = Path(destino)
+    zoom = f"(1+0.10*t/{dur:.2f})"
+    filtro = (f"[0:v]crop=1080:{alto}:0:{y},setsar=1[cima];"
+              f"[1:v]scale=1080:{baixo}:force_original_aspect_ratio=increase,crop=1080:{baixo},"
+              f"scale=w='trunc(1080*{zoom}/2)*2':h='trunc({baixo}*{zoom}/2)*2':eval=frame,crop=1080:{baixo},"
+              f"setsar=1,fps=60[baixo];[cima][baixo]vstack=shortest=1,fps=60"
+              + (",ass=f.ass" if titulo.strip() else "") + ",format=yuv420p[v]")
+    with tempfile.TemporaryDirectory(prefix="cortes_imagem_") as pasta:
+        (Path(pasta) / "f.ass").write_text(ass, encoding="utf-8")
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(Path(base).resolve()),
+               "-loop", "1", "-framerate", "60", "-i", str(Path(imagem).resolve()),
+               "-filter_complex", filtro, "-map", "[v]", "-map", "0:a?", "-t", f"{dur:.3f}",
                "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-maxrate", "8M", "-bufsize", "16M",
                "-c:a", "copy", "-movflags", "+faststart", "-f", "mp4", str(destino.resolve())]
         r = subprocess.run(cmd, cwd=pasta, capture_output=True, text=True, errors="replace")
@@ -386,8 +489,13 @@ def escolher_webcams(canal, deteccoes):
 
 # ----------------------------------------------------------------- renderizar
 
-def filtro_video(layout, cam, legenda, zoom=0.75):
-    if isinstance(cam, tuple):
+def filtro_video(layout, cam, legenda, zoom=0.75, logo=False, fundo=False):
+    if isinstance(cam, tuple) and fundo:
+        # pessoa falando com video embaixo: quadrado em volta do rosto em cima, o fundo (segunda entrada) embaixo
+        f = (f"[0:v]crop=ih:ih:min(max(iw*{cam[1]}-ih/2\\,0)\\,iw-ih):0,scale=1080:1080,setsar=1[topo];"
+             "[1:v]scale=1080:840:force_original_aspect_ratio=increase,crop=1080:840,setsar=1[baixo];"
+             "[topo][baixo]vstack=shortest=1,fps=60")  # sem o fps a mistura de duas taxas sai a 120
+    elif isinstance(cam, tuple):
         f = f"[0:v]crop=ih*9/16:ih:min(max(iw*{cam[1]}-ih*9/32\\,0)\\,iw-ih*9/16):0,scale=1080:1920"
     elif cam:
         x, y, l, a = cam
@@ -405,14 +513,27 @@ def filtro_video(layout, cam, legenda, zoom=0.75):
              "scale=1080:1920:flags=bilinear[fundo];"
              f"[b]crop=iw*{zoom}:ih,scale=1080:-2[frente];"
              "[fundo][frente]overlay=(W-w)/2:(H-h)/2")
+        if logo:  # a logo e a segunda entrada do ffmpeg; cabe numa caixa de 640x240 no topo, centralizada
+            f += ("[semlogo];[1:v]scale=640:240:force_original_aspect_ratio=decrease[logo];"
+                  "[semlogo][logo]overlay=(W-w)/2:80+(240-h)/2")
     if legenda:
         f += f",ass={legenda}"
     return f + ",format=yuv420p[v]"
 
 
-def renderizar(pasta_tmp, bruto, legenda, layout, cam, saida, zoom, ini, dur):
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{ini:.3f}", "-t", f"{dur:.3f}", "-i", bruto.name,
-           "-filter_complex", filtro_video(layout, cam, legenda.name if legenda else None, zoom),
+def renderizar(pasta_tmp, bruto, legenda, layout, cam, saida, zoom, ini, dur, logo=None, fundo=None):
+    """
+    `logo` (arquivo de imagem) so e usada no enquadramento de fundo desfocado, que e o da moldura.
+    `fundo` (arquivo, inicio) so e usado na camera cheia: vira a metade de baixo, sem som, repetindo se acabar.
+    """
+    logo = logo if not cam and layout != "crop" else None
+    fundo = fundo if isinstance(cam, tuple) else None
+    extra = ["-i", str(logo)] if logo else []
+    if fundo:
+        extra = ["-stream_loop", "-1", "-ss", f"{fundo[1]:.2f}", "-t", f"{dur:.3f}", "-i", str(fundo[0])]
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{ini:.3f}", "-t", f"{dur:.3f}", "-i", bruto.name, *extra,
+           "-filter_complex", filtro_video(layout, cam, legenda.name if legenda else None, zoom, logo=bool(logo),
+                                           fundo=bool(fundo)),
            "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
            "-maxrate", "8M", "-bufsize", "16M",
            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(saida)]

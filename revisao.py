@@ -44,6 +44,9 @@ def _listar():
                 "fala": dados.get("fala", ""), "origem": dados.get("origem", ""),
                 "jogo": dados.get("jogo", ""), "contexto": dados.get("contexto", ""),
                 "comentario": dados.get("comentario", ""), "comentario_auto": bool(dados.get("comentario_auto")),
+                "narrado": bool(dados.get("narrado")), "montagem": bool(dados.get("montagem")),
+                "imagem": bool(dados.get("imagem")),
+                "aceita_imagem": (dados.get("enquadramento_antes") or dados.get("enquadramento", "")).startswith("camera"),
                 "cutscene": bool(dados.get("cutscene")),
                 "ofensas": int(dados.get("ofensas") or 0),
                 "musica": dados.get("musica", ""), "musica_pct": dados.get("musica_pct"),
@@ -112,7 +115,8 @@ def _mover(ident, acao, campos):
     # O video vai primeiro porque e o unico que pode estar aberto pelo player.
     movidos = []
     try:
-        for f in (mp4, lado, mp4.with_suffix(".txt"), mp4.with_suffix(".base")):
+        for f in (mp4, lado, mp4.with_suffix(".txt"), mp4.with_suffix(".base"), mp4.with_suffix(".orig"),
+                  mp4.with_suffix(".img")):
             if f.exists():
                 os.replace(f, destino / f.name)
                 movidos.append(f)
@@ -126,12 +130,16 @@ def _mover(ident, acao, campos):
     return True
 
 
-def _comentar(ident, texto):
+def _comentar(ident, texto, narrar=True):
     """
     Queima o comentario do dono do canal no video. O video sem comentario fica guardado ao lado
     (mesmo nome, extensao .base), entao da para trocar ou tirar o comentario quantas vezes quiser.
+    Com `narrar`, o comentario tambem e falado por cima do corte. Devolve (ok, recado).
     """
+    import tempfile
+
     import video
+    import voz
     achado = _resolver(ident)
     if not achado:
         return False, "corte nao encontrado"
@@ -143,15 +151,21 @@ def _comentar(ident, texto):
             dados = json.loads(lado.read_text(encoding="utf-8"))
         except ValueError:
             dados = {}
-    texto = " ".join(str(texto).split())[:160]
+    texto, narrado = " ".join(str(texto).split())[:160], False
     try:
         if not texto:
             if base.exists():
                 os.replace(base, mp4)  # volta ao video sem comentario
         else:
             origem = base if base.exists() else mp4
-            # se o corte tem gancho, o comentario entra quando o gancho sai (4 s)
-            ok, erro = video.queimar_comentario(origem, novo, texto, 4.2 if dados.get("gancho") else 0.0)
+            com_imagem = bool(dados.get("imagem"))  # com imagem embaixo o gancho foi recortado: nao ha o que esperar
+            with tempfile.TemporaryDirectory(prefix="cortes_voz_") as pasta:
+                fala = os.path.join(pasta, "fala.mp3")
+                narrado = bool(narrar) and voz.falar(texto, fala)
+                # se o corte tem gancho, o comentario entra quando o gancho sai (4 s)
+                ok, erro = video.queimar_comentario(origem, novo, texto, 4.2 if dados.get("gancho") and not com_imagem else 0.0,
+                                                    voz=fala if narrado else None,
+                                                    embaixo=str(dados.get("enquadramento", "")).startswith("moldura"))
             if not ok:
                 return False, erro.strip()[-160:] or "falha ao renderizar"
             if not base.exists():
@@ -162,8 +176,118 @@ def _comentar(ident, texto):
         return False, f"arquivo em uso: {e}"
     dados["comentario"] = texto
     dados["comentario_auto"] = False  # a partir daqui o texto (ou a falta dele) e escolha do dono do canal
+    dados["narrado"] = narrado
     lado.write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
-    return True, ""
+    sem_voz = bool(texto) and bool(narrar) and not narrado
+    if narrado and voz.ULTIMO == "edge" and voz._chave():
+        return True, "Narrado com a voz reserva: o ElevenLabs não respondeu (cota do mês ou internet)"
+    return True, "A voz não saiu (sem internet?); o comentário entrou só como texto" if sem_voz else ""
+
+
+IMAGENS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+
+def _imagem(ident, conteudo, tipo=""):
+    """
+    Poe (ou tira, com `conteudo` vazio) uma imagem do assunto na metade de baixo de um corte de pessoa falando.
+    Arquivos ao lado do corte: .orig e o video antes da imagem, .img a imagem escolhida, .base o video sem
+    comentario (ja com a imagem). O comentario que o corte tinha e reaplicado por cima. Devolve (ok, recado).
+    """
+    import tempfile
+
+    import video
+    import voz
+    achado = _resolver(ident)
+    if not achado:
+        return False, "corte nao encontrado"
+    mp4 = achado[2]
+    lado, base, orig, img = (mp4.with_suffix(x) for x in (".json", ".base", ".orig", ".img"))
+    try:
+        dados = json.loads(lado.read_text(encoding="utf-8")) if lado.exists() else {}
+    except ValueError:
+        dados = {}
+    antes = dados.get("enquadramento_antes") or dados.get("enquadramento", "")
+    if conteudo and tipo not in IMAGENS:
+        return False, "a imagem precisa ser JPG, PNG ou WebP"
+    if not conteudo and not orig.exists():
+        return True, ""  # nao tinha imagem: nada a tirar
+    cru = orig if orig.exists() else (base if base.exists() else mp4)  # o corte sem imagem e sem comentario
+    comentario = dados.get("comentario", "")
+    recado = ""
+    try:
+        with tempfile.TemporaryDirectory(prefix="cortes_img_") as pasta:
+            limpo = cru
+            if conteudo:
+                arq = os.path.join(pasta, "imagem" + IMAGENS[tipo])
+                with open(arq, "wb") as f:
+                    f.write(conteudo)
+                limpo = mp4.with_suffix(".novo")
+                ok, erro = video.por_imagem(cru, limpo, arq, dados.get("titulo", ""), antes)
+                if not ok:
+                    return False, erro.strip()[-160:] or "falha ao renderizar"
+            final = limpo
+            if comentario:
+                fala = os.path.join(pasta, "fala.mp3")
+                narrado = bool(dados.get("narrado")) and voz.falar(comentario, fala)
+                final = mp4.with_suffix(".novo2")
+                ok, erro = video.queimar_comentario(limpo, final, comentario, 4.2 if dados.get("gancho") and not conteudo else 0.0,
+                                                    voz=fala if narrado else None,
+                                                    embaixo=not conteudo and antes.startswith("moldura"))
+                if not ok:
+                    if limpo != cru:
+                        limpo.unlink(missing_ok=True)
+                    return False, erro.strip()[-160:] or "falha ao reaplicar o comentario"
+                dados["narrado"] = narrado
+            # tudo renderizado: so agora os arquivos do corte mudam de lugar
+            if conteudo:
+                if not orig.exists():
+                    os.replace(cru, orig)
+                with open(img, "wb") as f:
+                    f.write(conteudo)
+                if comentario:
+                    os.replace(limpo, base)
+                else:
+                    base.unlink(missing_ok=True)
+                os.replace(final, mp4)
+            else:
+                if comentario:
+                    os.replace(final, mp4)
+                    os.replace(orig, base)
+                else:
+                    base.unlink(missing_ok=True)
+                    os.replace(orig, mp4)
+                img.unlink(missing_ok=True)
+    except OSError as e:
+        for sobra in (".novo", ".novo2"):
+            mp4.with_suffix(sobra).unlink(missing_ok=True)
+        return False, f"arquivo em uso: {e}"
+    dados["imagem"] = bool(conteudo)
+    dados["enquadramento_antes"] = antes
+    dados["enquadramento"] = "camera + imagem embaixo" if conteudo else antes
+    lado.write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
+    return True, recado
+
+
+def _montar(ids, titulo, tipo, narrar=True):
+    """Junta os cortes escolhidos pelo CEO num video so (ranking ou comparacao) e poe o resultado na mesa dele."""
+    import montagem
+    cortes = []
+    for ident in ids if isinstance(ids, list) else []:
+        achado = _resolver(str(ident))
+        if not achado:
+            return False, "um dos cortes escolhidos nao existe mais", {}
+        mp4 = achado[2]
+        try:
+            dados = json.loads(mp4.with_suffix(".json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            dados = {}
+        if dados.get("montagem"):
+            return False, "uma montagem nao entra em outra montagem", {}
+        cortes.append({"video": mp4, "dados": dados})
+    ok, erro, dados = montagem.criar(cortes, titulo, tipo, PASTAS["pendente"], narrar=narrar)
+    if ok:
+        esteira.registrar_evento(RAIZ / "estado", "empresa", "ceo", f"montou um video com {len(cortes)} cortes: {dados['titulo']}")
+    return ok, erro, dados
 
 
 def _escritorio():
@@ -330,8 +454,27 @@ class Tela(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionError):
             pass
 
+    def _receber_imagem(self):
+        """Imagem do assunto para a metade de baixo de um corte: o corpo e o arquivo, o corte vem em ?id=."""
+        porta = self.server.server_address[1]
+        if not self._local() or self.headers.get("Origin") not in (f"http://127.0.0.1:{porta}", f"http://localhost:{porta}"):
+            self.send_error(403)
+            return
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+            if not 0 <= n <= 20_000_000:
+                raise ValueError("imagem grande demais (limite de 20 MB)")
+            ident = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+            ok, erro = _imagem(ident, self.rfile.read(n) if n else b"", self.headers.get("Content-Type", "").split(";")[0].strip())
+        except (ValueError, OSError) as e:
+            ok, erro = False, str(e)
+        self._json({"ok": ok, "erro": erro}, 200 if ok else 400)
+
     def do_POST(self):
-        if self.path not in ("/api/acao", "/api/expediente", "/api/pedido", *gestao.ACOES):
+        if self.path.split("?")[0] == "/api/imagem":
+            self._receber_imagem()
+            return
+        if self.path not in ("/api/acao", "/api/expediente", "/api/pedido", "/api/montagem", *gestao.ACOES):
             self.send_error(404)
             return
         # exigir Origin proprio e JSON declarado impede que outra pagina aberta no navegador mexa nos cortes
@@ -355,11 +498,18 @@ class Tela(BaseHTTPRequestHandler):
                 self._json({"ok": True, **_pedido(str(dados.get("url", "")), str(dados.get("time", "")), dados.get("cortes"),
                                                   str(dados.get("jogo", "")))})
                 return
+            if self.path == "/api/montagem":
+                ok, erro, feito = _montar(dados.get("ids"), str(dados.get("titulo", "")), str(dados.get("tipo", "")),
+                                          dados.get("narrar", True) is not False)
+                self._json({"ok": ok, "erro": erro, "duracao": feito.get("duracao"), "narrado": feito.get("narrado")},
+                           200 if ok else 400)
+                return
             if self.path == "/api/expediente":
                 self._json({"ok": True, "vigia": _expediente(str(dados.get("acao", "")))})
                 return
             if dados.get("acao") == "comentar":
-                ok, erro = _comentar(str(dados.get("id", "")), (campos or {}).get("comentario", ""))
+                ok, erro = _comentar(str(dados.get("id", "")), (campos or {}).get("comentario", ""),
+                                     (campos or {}).get("narrar", True) is not False)
                 self._json({"ok": ok, "erro": erro}, 200 if ok else 400)
                 return
             ok = _mover(str(dados.get("id", "")), str(dados.get("acao", "")), campos)
@@ -444,6 +594,8 @@ PAGINA = r"""<!doctype html>
   input[type=text]:focus-visible, textarea:focus-visible, button:focus-visible, select:focus-visible {
                      outline: 2px solid var(--destaque); outline-offset: 2px; }
   .motivo { font-size: 13px; color: var(--fraco); margin: 0; }
+  .marcar { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--texto); cursor: pointer; }
+  .marcar input { accent-color: var(--destaque); width: 16px; height: 16px; margin: 0; flex: none; }
   .etiqueta { font-size: 12px; border: 1px solid var(--borda); border-radius: 999px; padding: 2px 9px; color: var(--texto); }
   .etiqueta.atencao { border-color: var(--destaque); color: var(--destaque); }
   .etiqueta.alerta { border-color: var(--ruim); color: var(--ruim); }
@@ -457,6 +609,18 @@ PAGINA = r"""<!doctype html>
   .decisao button { font-size: 15px; font-weight: 600; padding: 9px 10px; }
   .decisao .sim { background: var(--destaque); border-color: var(--destaque); color: #1a1206; }
   .decisao .nao { color: var(--ruim); border-color: color-mix(in srgb, var(--ruim) 55%, transparent); }
+  #montagem { position: sticky; bottom: 0; z-index: 4; background: linear-gradient(#0f1522, #0a0e17);
+              border-top: 1px solid var(--latao2); padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+  #montagem[hidden] { display: none; }
+  #montagem b { font: 700 17px/1.2 var(--serifa); color: var(--destaque); }
+  #montagem input[type=text] { flex: 1 1 240px; width: auto; }
+  #montagem select { margin-left: 0; }
+  #montagem button { background: var(--destaque); border: 1px solid var(--destaque); color: #1a1206; border-radius: 8px;
+                     padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+  #montagem button.fraco { background: transparent; color: var(--fraco); border-color: var(--borda); font-weight: 400; }
+  #montagem small { color: var(--fraco); flex-basis: 100%; }
+  #montagem small.alerta { color: var(--ruim); }
+  article.escolhido { border-color: var(--destaque); }
   #aviso { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--texto);
            color: var(--fundo); padding: 8px 16px; border-radius: 999px; font-size: 14px; opacity: 0;
            transition: opacity .2s; pointer-events: none; }
@@ -481,6 +645,18 @@ PAGINA = r"""<!doctype html>
   <select id="canal" aria-label="Filtrar por canal"></select>
 </div>
 <main id="lista"></main>
+<form id="montagem" hidden>
+  <b id="mont-conta"></b>
+  <select id="mont-tipo" aria-label="Tipo de montagem">
+    <option value="ranking">Ranking (o melhor por último)</option>
+    <option value="comparacao">Comparação (na ordem que você marcou)</option>
+  </select>
+  <input type="text" id="mont-titulo" maxlength="80" placeholder="Título da montagem, com as suas palavras" aria-label="Título da montagem">
+  <label class="marcar"><input type="checkbox" id="mont-narrar" checked>Narrar as cartelas</label>
+  <button type="submit" id="mont-fazer">Montar vídeo</button>
+  <button type="button" class="fraco" id="mont-limpar">Limpar</button>
+  <small id="mont-dica"></small>
+</form>
 <div id="aviso" role="status"></div>
 <script>
 const NOMES = { ceo: "Para você aprovar", analise: "Em análise", aprovado: "Aprovados", descartado: "Descartados" };
@@ -488,6 +664,42 @@ const ETAPAS = { lider_time: "com o líder do time", qualidade: "na qualidade", 
                  gerente: "com o gerente de conteúdo", diretor: "na reserva do diretor editorial" };
 fetch("/api/escritorio").then(r => r.json()).then(q => { document.getElementById("marca").textContent = q.empresa; }).catch(() => {});
 let cortes = [], aba = "ceo", canal = "";
+let escolhidos = [];  // ids dos cortes marcados para a montagem, na ordem em que foram marcados
+function barraDaMontagem() {
+  escolhidos = escolhidos.filter(id => cortes.some(c => c.id === id));
+  const barra = document.getElementById("montagem");
+  barra.hidden = !escolhidos.length;
+  if (!escolhidos.length) return;
+  const seg = Math.round(escolhidos.reduce((s, id) => s + (cortes.find(c => c.id === id).duracao || 0) + 2, 0));
+  document.getElementById("mont-conta").textContent = "Montagem: " + escolhidos.length + (escolhidos.length === 1 ? " corte" : " cortes") + " · " + seg + " s";
+  const dica = document.getElementById("mont-dica");
+  dica.className = seg > 180 ? "alerta" : "";
+  dica.textContent = escolhidos.length < 2 ? "Marque pelo menos 2 cortes."
+    : seg > 180 ? "Passa de 3 minutos: o YouTube não trata como Short. Tire um corte ou poste só no TikTok."
+    : "O título abre o vídeo e é narrado. No ranking a ordem vem da nota; na comparação, da ordem em que você marcou.";
+  document.getElementById("mont-fazer").disabled = escolhidos.length < 2;
+}
+document.getElementById("mont-limpar").onclick = () => { escolhidos = []; desenhar(); };
+document.getElementById("montagem").onsubmit = async ev => {
+  ev.preventDefault();
+  const titulo = document.getElementById("mont-titulo").value.trim();
+  if (!titulo) { avisar("Dê um título à montagem"); document.getElementById("mont-titulo").focus(); return; }
+  const botao = document.getElementById("mont-fazer");
+  botao.disabled = true; botao.textContent = "Montando... (1 a 3 min)";
+  let r, j = {};
+  try {
+    r = await fetch("/api/montagem", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: escolhidos, titulo, tipo: document.getElementById("mont-tipo").value,
+                             narrar: document.getElementById("mont-narrar").checked }) });
+    j = await r.json().catch(() => ({}));
+  } catch { r = { ok: false }; }
+  botao.textContent = "Montar vídeo";
+  if (r.ok) {
+    avisar("Montagem pronta (" + Math.round(j.duracao) + " s)" + (j.narrado ? "" : ", sem narração"));
+    escolhidos = []; document.getElementById("mont-titulo").value = ""; aba = "ceo"; canal = "";
+    carregar();
+  } else { avisar("Não deu: " + (j.erro || "erro")); botao.disabled = false; }
+};
 
 const el = (tag, props = {}, filhos = []) => {
   const n = Object.assign(document.createElement(tag), props);
@@ -569,6 +781,8 @@ function cartao(c) {
   if (c.ofensas) avisos.append(el("span", { className: "etiqueta atencao", textContent: "Xingamento pesado no áudio",
     title: "A legenda foi mascarada, mas a palavra continua sendo ouvida; a plataforma pode restringir o vídeo" }));
   if (avisos.children.length) corpo.append(avisos);
+  if (c.montagem) avisos.append(el("span", { className: "etiqueta atencao", textContent: "Montagem" }));
+  if (avisos.children.length && !avisos.parentNode) corpo.append(avisos);
   if (c.motivo) corpo.append(el("p", { className: "motivo", textContent: c.motivo }));
   if (c.fila === "analise") corpo.append(el("p", { className: "motivo", textContent: "Ainda " + (ETAPAS[c.etapa] || "na esteira") + "." }));
   if (c.trilha.length) {
@@ -587,6 +801,15 @@ function cartao(c) {
   if (c.postado_youtube) corpo.append(el("p", { className: "motivo", textContent: "Postado no YouTube: " + c.postado_youtube }));
   if (c.postado_tiktok) corpo.append(el("p", { className: "motivo", textContent: "Enviado como rascunho ao TikTok." }));
   corpo.append(cxTitulo, cxTiktok, cxShorts);
+  if (!c.montagem && c.fila !== "descartado") {
+    const marca = el("input", { type: "checkbox", checked: escolhidos.includes(c.id) });
+    marca.onchange = () => {
+      escolhidos = marca.checked ? [...escolhidos, c.id] : escolhidos.filter(id => id !== c.id);
+      marca.closest("article").classList.toggle("escolhido", marca.checked);
+      barraDaMontagem();
+    };
+    corpo.append(el("label", { className: "marcar" }, [marca, document.createTextNode("Usar na montagem")]));
+  }
   const [cxComent, coment] = campo("Seu comentário no vídeo", c.comentario || c.contexto, 2);
   coment.maxLength = 160;
   const dica = el("p", { className: "motivo", textContent: c.comentario_auto
@@ -599,12 +822,37 @@ function cartao(c) {
     document.querySelectorAll("video").forEach(v => { if (v.dataset.id === c.id) { v.pause(); v.removeAttribute("src"); v.load(); } });
     await new Promise(r => setTimeout(r, 150));
     const r = await fetch("/api/acao", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: c.id, acao: "comentar", campos: { comentario: coment.value.trim() } }) });
+      body: JSON.stringify({ id: c.id, acao: "comentar", campos: { comentario: coment.value.trim(), narrar: narrar.checked } }) });
     const j = await r.json().catch(() => ({}));
-    avisar(r.ok ? (coment.value.trim() ? "Comentário aplicado" : "Comentário removido") : "Não deu: " + (j.erro || "erro"));
+    avisar(r.ok ? (j.erro || (!coment.value.trim() ? "Comentário removido" : narrar.checked ? "Comentário aplicado e narrado" : "Comentário aplicado"))
+                : "Não deu: " + (j.erro || "erro"));
     carregar();
   });
-  corpo.append(cxComent, dica, el("div", { className: "botoes" }, [aplicar]));
+  const narrar = el("input", { type: "checkbox", checked: c.comentario && !c.comentario_auto ? c.narrado : true });
+  const cxNarrar = el("label", { className: "marcar" }, [narrar, document.createTextNode(
+    "Narrar com voz (o som do corte abaixa enquanto a frase é falada)")]);
+  corpo.append(cxComent, cxNarrar, dica, el("div", { className: "botoes" }, [aplicar]));
+  if (c.aceita_imagem && !c.montagem) {
+    // corte de pessoa falando: a metade de baixo pode virar uma imagem do assunto, com o titulo numa faixa
+    const mandar = async (arquivo) => {
+      document.querySelectorAll("video").forEach(v => { if (v.dataset.id === c.id) { v.pause(); v.removeAttribute("src"); v.load(); } });
+      await new Promise(r => setTimeout(r, 150));
+      avisar(arquivo ? "Renderizando com a imagem..." : "Tirando a imagem...");
+      const r = await fetch("/api/imagem?id=" + encodeURIComponent(c.id), { method: "POST",
+        headers: arquivo ? { "Content-Type": arquivo.type } : {}, body: arquivo || "" });
+      const j = await r.json().catch(() => ({}));
+      avisar(r.ok ? (arquivo ? "Imagem aplicada" : "Imagem removida") : "Não deu: " + (j.erro || "erro"));
+      carregar();
+    };
+    const escolher = el("input", { type: "file", accept: "image/jpeg,image/png,image/webp", hidden: true });
+    escolher.onchange = () => { if (escolher.files[0]) mandar(escolher.files[0]); };
+    const linha = el("div", { className: "botoes" }, [escolher,
+      bt(c.imagem ? "Trocar imagem de baixo" : "Pôr imagem do assunto embaixo", () => escolher.click())]);
+    if (c.imagem) linha.append(bt("Tirar imagem", () => mandar(null)));
+    corpo.append(linha, el("p", { className: "motivo", textContent: c.imagem
+      ? "A faixa usa o título acima; se mudar o título, troque a imagem de novo para atualizar."
+      : "A imagem ocupa a metade de baixo e o título vira uma faixa na emenda. Use imagem sua ou com uso liberado." }));
+  }
   corpo.append(el("div", { className: "botoes" }, [
     bt("Copiar título", () => copiar(titulo.value.trim(), "Título")),
     bt("Copiar TikTok", () => copiar(tiktok.value.trim(), "Legenda do TikTok")),
@@ -639,9 +887,10 @@ function cartao(c) {
   vid.dataset.id = c.id;
   vid.src = "/v/" + c.id.split("/").map(encodeURIComponent).join("/") + "?v=" + c.versao + "#t=0.5";
   vid.addEventListener("play", () => document.querySelectorAll("video").forEach(v => { if (v !== vid) v.pause(); }));
-  return el("article", {}, [vid, corpo]);
+  return el("article", { className: escolhidos.includes(c.id) ? "escolhido" : "" }, [vid, corpo]);
 }
 function desenhar() {
+  barraDaMontagem();
   const abas = document.getElementById("abas");
   abas.replaceChildren(...Object.keys(NOMES).map(k => {
     const b = el("button", { type: "button", textContent: NOMES[k] + " (" + cortes.filter(c => c.fila === k).length + ")" });

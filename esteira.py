@@ -148,7 +148,8 @@ def _descartar(lado, dados, pastas, log):
     try:
         destino.mkdir(parents=True, exist_ok=True)
         # o video vai primeiro: e o unico que pode estar aberto num player, e se ele nao sair nada sai
-        for f in (lado.with_suffix(".mp4"), lado, lado.with_suffix(".txt"), lado.with_suffix(".base")):
+        for f in (lado.with_suffix(".mp4"), lado, lado.with_suffix(".txt"), lado.with_suffix(".base"),
+                  lado.with_suffix(".orig"), lado.with_suffix(".img")):
             if f.exists():
                 os.replace(f, destino / f.name)
                 movidos.append(f)

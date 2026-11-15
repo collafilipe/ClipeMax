@@ -379,14 +379,29 @@ def gerar_cortes(url, info, hls_video, picos, a, n_final, tmp, saida, total, rms
         ofensas = video.mascarar(c["fala"])[1]  # contado mesmo sem mascara, para avisar na revisao
         if ofensas and mascara:
             log(f"   {nome}: {ofensas} xingamento(s) pesado(s) mascarado(s) na legenda (o audio continua igual)")
+        # Formato pelo tipo de video. Com webcam (ou camera cheia) a tela ja esta ocupada e o gancho some aos 4 s.
+        # Sem webcam sobra uma faixa em cima e outra embaixo do jogo: viram moldura, com a logo do canal e uma
+        # frase sobre o assunto (o titulo da IA) o video inteiro. A legenda sobe para cima do jogo.
+        logo = video.logo_do_canal()
+        frase = (c["ia"] or {}).get("titulo") or gancho
+        moldura = (not cam and a.layout == "blur" and not getattr(a, "sem_moldura", False) and bool(frase or logo)
+                   and ("logo" if logo else "frase"))
+        # Pessoa falando com a camera em tela cheia: se o dono pos videos na pasta fundos/, um deles entra
+        # na metade de baixo (sem som) e a legenda sobe para a emenda.
+        fundo = (video.escolher_fundo(c["pico"], dur)
+                 if isinstance(cam, tuple) and not getattr(a, "sem_fundo", False) else None)
         legenda = tmp / f"{nome}.ass"
-        video.escrever_ass(c["palavras"], legenda, 1170 if isinstance(cam, list) else a.margem_legenda,
-                           gancho=gancho, credito=None if a.sem_credito else f"@{info['canal']}", duracao=dur,
-                           estilo=video.estilo_do_corte(c["pico"], getattr(a, "estilo_fixo", False)), mascara=mascara)
+        video.escrever_ass(c["palavras"], legenda,
+                           1170 if isinstance(cam, list) else 880 if fundo else (600 if moldura else a.margem_legenda),
+                           gancho=frase if moldura else gancho,
+                           credito=None if a.sem_credito else f"@{info['canal']}", duracao=dur,
+                           estilo=video.estilo_do_corte(c["pico"], getattr(a, "estilo_fixo", False)), mascara=mascara,
+                           moldura=moldura or None)
         _diario(a, "edicao", f"renderizando o corte {nome} ({dur:.0f}s)")
         # renderiza na pasta temporaria e so move quando esta pronto: a revisao nunca ve arquivo pela metade
         parcial = tmp / f"{nome}.mp4"
-        ok, erro = video.renderizar(tmp, c["bruto"], legenda, a.layout, cam, parcial, a.zoom, c["ini"], dur)
+        ok, erro = video.renderizar(tmp, c["bruto"], legenda, a.layout, cam, parcial, a.zoom, c["ini"], dur,
+                                    logo=logo if moldura else None, fundo=fundo)
         c["bruto"].unlink(missing_ok=True)
         if not ok:
             parcial.unlink(missing_ok=True)
@@ -399,7 +414,8 @@ def gerar_cortes(url, info, hls_video, picos, a, n_final, tmp, saida, total, rms
         sem_contexto = None
         if contexto and not getattr(a, "sem_contexto", False):
             com_contexto = tmp / f"{nome}_contexto.mp4"
-            ok, erro = video.queimar_comentario(parcial, com_contexto, contexto, 4.2 if gancho else 0.0)
+            ok, erro = video.queimar_comentario(parcial, com_contexto, contexto, 4.2 if gancho else 0.0,
+                                                embaixo=bool(moldura))
             if ok:
                 sem_contexto, parcial = parcial, com_contexto
             else:
@@ -423,7 +439,10 @@ def gerar_cortes(url, info, hls_video, picos, a, n_final, tmp, saida, total, rms
             "musica": som["nivel"], "musica_pct": som["musica_pct"], "musica_forte_s": som["musica_forte_s"],
             "tiktok": limpar((c["ia"] or {}).get("legenda_tiktok") or tags),
             "shorts": limpar((c["ia"] or {}).get("legenda_shorts") or tags + " #shorts"), "fala": c["fala"],
-            "enquadramento": "camera cheia" if isinstance(cam, tuple) else ("webcam + jogo" if cam else "fundo desfocado"),
+            "enquadramento": ("camera + video embaixo" if fundo else "camera cheia" if isinstance(cam, tuple)
+                              else "webcam + jogo" if cam
+                              else "moldura com logo e frase" if moldura == "logo" else "moldura com frase" if moldura
+                              else "fundo desfocado"),
         }
         (saida / f"{nome}.json").write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
         if sem_contexto:
@@ -1050,6 +1069,10 @@ def main():
     p.add_argument("--zoom", type=float, default=0.75,
                    help="layout blur: fracao da largura da tela que aparece (1.0 = tela inteira)")
     p.add_argument("--gancho", default="", help="texto fixo no topo nos primeiros segundos (a IA gera um por corte)")
+    p.add_argument("--sem-fundo", action="store_true", dest="sem_fundo",
+                   help="corte de pessoa falando sai com a camera em tela cheia, mesmo com videos na pasta fundos/")
+    p.add_argument("--sem-moldura", action="store_true", dest="sem_moldura",
+                   help="corte sem webcam sai so com o fundo desfocado, sem a logo e a frase fixa no topo")
     p.add_argument("--sem-contexto", action="store_true", dest="sem_contexto",
                    help="nao escreve no video a frase de contexto da IA (por padrao ela entra depois do gancho; "
                         "da para trocar pela sua opiniao ou tirar na tela de aprovacao)")

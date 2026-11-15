@@ -1,0 +1,11 @@
+Videos para a metade de baixo dos cortes de pessoa falando (camera em tela cheia, sem jogo).
+
+Coloque aqui arquivos .mp4, .mov, .mkv ou .webm. Em cada corte o ClipeMax sorteia um deles e um ponto
+de inicio; o video entra sem som e se repete se for mais curto que o corte. Videos de alguns minutos
+rendem mais variedade.
+
+Use so video que voce gravou ou que tem licenca para usar: video de outro criador traz o mesmo
+problema de direitos do corte.
+
+Pasta vazia = esses cortes saem com a camera em tela cheia, como antes. Para desligar mesmo com
+videos aqui: --sem-fundo nas opcoes extras da vigia.

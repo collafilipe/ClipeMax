@@ -7,3 +7,5 @@ opencv-python-headless==4.14.0.94
 # so para o caminho opcional da API paga (chave_api.txt); o padrao usa o Claude Code instalado
 anthropic==2.8.0
 jiter==0.18.0
+# narracao do comentario e das montagens (voz.py); precisa de internet
+edge-tts==7.3.1

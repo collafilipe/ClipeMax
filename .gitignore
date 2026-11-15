@@ -17,3 +17,9 @@ segredos/
 # pacotes e sobras
 *.zip
 modelos/_baixado/
+
+# material do dono do canal: videos de fundo e a logo
+fundos/*
+!fundos/LEIAME.txt
+logo.png
+testes_de_formato/
